@@ -426,13 +426,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     alignment: Alignment.center,
                     children: [
                       // Background ring
-                      SizedBox(
+                      const SizedBox(
                         width: 130,
                         height: 130,
                         child: CircularProgressIndicator(
                           value: 1.0,
                           strokeWidth: 12,
-                          color: const Color(0xFFE0DEF0),
+                          color: Color(0xFFE0DEF0),
                         ),
                       ),
                       // Progress ring
@@ -566,7 +566,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: widget.meals.length,
-              separatorBuilder: (_, _) =>
+              separatorBuilder: (_, e_) =>
               const Divider(color: Colors.black12, height: 1),
               itemBuilder: (_, i) {
                 final meal = widget.meals[i];
@@ -626,7 +626,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: widget.activities.length,
-              separatorBuilder: (_, _) =>
+              separatorBuilder: (_, err_) =>
               const Divider(color: Colors.black12, height: 1),
               itemBuilder: (_, i) {
                 final activity = widget.activities[i];

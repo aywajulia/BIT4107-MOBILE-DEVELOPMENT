@@ -337,9 +337,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             // Rotated Y label
-            RotatedBox(
+            const RotatedBox(
               quarterTurns: 3,
-              child: const Text(
+              child: Text(
                 'M U S C L E',
                 style: TextStyle(
                   fontSize: 11,

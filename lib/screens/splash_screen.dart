@@ -7,9 +7,9 @@ void main() {
       const MyApp({super.key});
       @override
        Widget build(BuildContext context) {
-        return MaterialApp(
+        return const MaterialApp(
           title: 'Shredded Squad',
-           home: const SplashScreen(),
+           home: SplashScreen(),
       );
       }
      }
@@ -99,7 +99,7 @@ class _AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       mainAxisSize: MainAxisSize.min,
       // Align text to the left, matching the design
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,7 +111,7 @@ class _AppLogo extends StatelessWidget {
             fontFamily: 'Roboto', // swap for your brand font if needed
             fontSize: 52,
             fontWeight: FontWeight.w900, // heavy / black weight
-            color: const Color(0xFF1A1A1A), // near-black
+            color: Color(0xFF1A1A1A), // near-black
             height: 1.1,
             letterSpacing: -0.5,
           ),
@@ -124,7 +124,7 @@ class _AppLogo extends StatelessWidget {
             fontFamily: 'Roboto',
             fontSize: 48,
             fontWeight: FontWeight.w700, // bold
-            color: const Color(0xFFF2EFE0), // off-white / cream
+            color: Color(0xFFF2EFE0), // off-white / cream
             height: 1.1,
             letterSpacing: -0.5,
           ),

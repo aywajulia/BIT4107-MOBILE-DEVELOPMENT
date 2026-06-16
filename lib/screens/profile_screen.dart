@@ -1,43 +1,35 @@
 /// profile_screen.dart
 /// Location: lib/screens/profile_screen.dart
 ///
-/// The Profile screen (5th / final screen) for Shredded Squad.
+/// Profile screen — now connected to Firebase.
 ///
-/// Features:
-///   • View & update profile picture (image_picker)
-///   • Edit personal details: name, email
-///   • Edit physical metrics: height, weight, target weight
-///   • Select activity level: Beginner / Intermediate / Advanced
-///   • Save changes with validation
-///   • Log out button → returns to login screen
-///
-/// Dependencies to add in pubspec.yaml:
-///   image_picker: ^1.0.7
-library;
+/// On load:   fetches the user's saved profile from Firestore
+/// On save:   writes updated profile back to Firestore
+/// On logout: signs out via Firebase Auth → navigates to login
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 
-// ─── Activity Level Enum ──────────────────────────────────────────────────────
+// ── Activity level enum ────────────────────────────────────────────────────────
 
 enum ActivityLevel { beginner, intermediate, advanced }
 
 extension ActivityLevelLabel on ActivityLevel {
   String get label {
     switch (this) {
-      case ActivityLevel.beginner:
-        return 'Beginner';
-      case ActivityLevel.intermediate:
-        return 'Intermediate';
-      case ActivityLevel.advanced:
-        return 'Advanced';
+      case ActivityLevel.beginner:    return 'Beginner';
+      case ActivityLevel.intermediate: return 'Intermediate';
+      case ActivityLevel.advanced:    return 'Advanced';
     }
   }
 }
 
-// ─── Profile Screen ───────────────────────────────────────────────────────────
+// ── Profile Screen ─────────────────────────────────────────────────────────────
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -47,21 +39,26 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // ─── Form key ─────────────────────────────────────────────────────────────
-  final _formKey = GlobalKey<FormState>();
-
-  // ─── Controllers ──────────────────────────────────────────────────────────
-  final _nameCtrl = TextEditingController(text: 'Username');
-  final _emailCtrl = TextEditingController();
-  final _heightCtrl = TextEditingController();
-  final _weightCtrl = TextEditingController();
+  // ── Form ──────────────────────────────────────────────────────────────────
+  final _formKey         = GlobalKey<FormState>();
+  final _nameCtrl        = TextEditingController();
+  final _emailCtrl       = TextEditingController();
+  final _heightCtrl      = TextEditingController();
+  final _weightCtrl      = TextEditingController();
   final _targetWeightCtrl = TextEditingController();
 
-  // ─── State ────────────────────────────────────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────
   ActivityLevel _activityLevel = ActivityLevel.beginner;
-  File? _profileImage;
-  bool _isEditing = false;
-  bool _isSaving = false;
+  File?  _profileImage;
+  bool   _isEditing  = false;
+  bool   _isSaving   = false;
+  bool   _isLoading  = true; // true while fetching from Firestore
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile(); // fetch saved profile from Firestore on screen open
+  }
 
   @override
   void dispose() {
@@ -73,27 +70,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // ─── Pick profile picture ─────────────────────────────────────────────────
+  // ── Load from Firestore ────────────────────────────────────────────────────
+
+  /// Fetches the user's profile from Firestore and fills the fields.
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final data = await ProfileService.loadProfile();
+
+      if (data != null && mounted) {
+        setState(() {
+          _nameCtrl.text         = data['name']         ?? '';
+          _emailCtrl.text        = data['email']        ?? '';
+          _heightCtrl.text       = data['height']       ?? '';
+          _weightCtrl.text       = data['weight']       ?? '';
+          _targetWeightCtrl.text = data['targetWeight'] ?? '';
+
+          // Restore activity level from saved string
+          final saved = data['activityLevel'] as String? ?? 'Beginner';
+          _activityLevel = ActivityLevel.values.firstWhere(
+                (l) => l.label == saved,
+            orElse: () => ActivityLevel.beginner,
+          );
+        });
+      } else if (mounted) {
+        // No profile saved yet — pre-fill email from Firebase Auth
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          _emailCtrl.text = user.email ?? '';
+          _nameCtrl.text  = user.displayName ?? '';
+        }
+      }
+    } catch (e) {
+      // Network error — silently fail and let user fill in manually
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Save to Firestore ──────────────────────────────────────────────────────
+
+  /// Validates the form then saves all fields to Firestore.
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+
+    try {
+      // Write all fields to Firestore under users/{uid}
+      await ProfileService.saveProfile(
+        name:          _nameCtrl.text.trim(),
+        email:         _emailCtrl.text.trim(),
+        height:        _heightCtrl.text.trim(),
+        weight:        _weightCtrl.text.trim(),
+        targetWeight:  _targetWeightCtrl.text.trim(),
+        activityLevel: _activityLevel.label,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isSaving  = false;
+          _isEditing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile saved to Firebase! ✅'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Profile picture ────────────────────────────────────────────────────────
 
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
-            const Text(
-              'Update Profile Photo',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700),
-            ),
+            const Text('Update Profile Photo',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined,
@@ -135,8 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
+      final picked = await ImagePicker().pickImage(
         source: source,
         maxWidth: 600,
         maxHeight: 600,
@@ -145,42 +220,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (picked != null) {
         setState(() => _profileImage = File(picked.path));
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not pick image: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    }
+    } catch (_) {}
   }
 
-  // ─── Save profile ─────────────────────────────────────────────────────────
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSaving = true);
-
-    // TODO: persist with shared_preferences or your backend
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-        _isEditing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  // ─── Log out ──────────────────────────────────────────────────────────────
+  // ── Logout ─────────────────────────────────────────────────────────────────
 
   void _handleLogout() {
     showDialog(
@@ -206,13 +249,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: clear auth tokens here
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/login',
-                    (route) => false,
-              );
+              // Sign out from Firebase Auth
+              await AuthService.logout();
+              if (mounted) {
+                // Clear the navigation stack and go back to login
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/login',
+                      (route) => false,
+                );
+              }
             },
             child: const Text('Log out',
                 style: TextStyle(color: Colors.white)),
@@ -222,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -231,25 +278,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFAAAAAA),
-          ],
+          colors: [Color(0xFFFFFFFF), Color(0xFFAAAAAA)],
         ),
       ),
       child: SafeArea(
-        child: Column(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
           children: [
-            // Scrollable content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                padding:
+                const EdgeInsets.fromLTRB(24, 24, 24, 16),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Profile picture + username ───────────────────
+                      // ── Avatar + username ─────────────────────
                       Center(
                         child: Column(
                           children: [
@@ -261,12 +307,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     radius: 56,
                                     backgroundColor:
                                     const Color(0xFF1A1A1A),
-                                    backgroundImage: _profileImage != null
-                                        ? FileImage(_profileImage!)
+                                    backgroundImage:
+                                    _profileImage != null
+                                        ? FileImage(
+                                        _profileImage!)
                                         : null,
                                     child: _profileImage == null
                                         ? const Icon(Icons.person,
-                                        size: 64, color: Colors.white)
+                                        size: 64,
+                                        color: Colors.white)
                                         : null,
                                   ),
                                   Positioned(
@@ -275,54 +324,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     child: Container(
                                       width: 30,
                                       height: 30,
-                                      decoration: const BoxDecoration(
+                                      decoration:
+                                      const BoxDecoration(
                                         color: Colors.white,
                                         shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(Icons.camera_alt,
+                                      child: const Icon(
+                                          Icons.camera_alt,
                                           size: 17,
-                                          color: Color(0xFF1A1A1A)),
+                                          color:
+                                          Color(0xFF1A1A1A)),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 12),
                             Text(
                               _nameCtrl.text.isEmpty
                                   ? 'Username'
                                   : _nameCtrl.text,
                               style: const TextStyle(
-                                fontSize: 26,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w900,
                                 color: Color(0xFF1A1A1A),
                               ),
+                            ),
+                            // Show Firebase UID for reference
+                            Text(
+                              'UID: ${FirebaseAuth.instance.currentUser?.uid.substring(0, 8) ?? ''}...',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black38),
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
-                      // ── Edit / Save toggle ───────────────────────────
+                      // ── Edit / Save toggle ────────────────────
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: _isEditing
                               ? _saveProfile
-                              : () => setState(() => _isEditing = true),
+                              : () => setState(
+                                  () => _isEditing = true),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding:
+                            const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1A1A1A),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius:
+                              BorderRadius.circular(20),
                             ),
                             child: _isSaving
                                 ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
+                              child:
+                              CircularProgressIndicator(
                                 color: Colors.white,
                                 strokeWidth: 2,
                               ),
@@ -341,88 +404,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // ── Personal Details ─────────────────────────────
+                      // ── Personal details ──────────────────────
                       _sectionTitle('Personal details'),
                       const SizedBox(height: 12),
-
-                      _profileField(
+                      _field(
                         label: 'Name',
-                        controller: _nameCtrl,
+                        ctrl: _nameCtrl,
                         enabled: _isEditing,
-                        validator: (v) => v == null || v.trim().isEmpty
+                        validator: (v) =>
+                        v == null || v.trim().isEmpty
                             ? 'Name is required'
                             : null,
                         onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 12),
-
-                      _profileField(
+                      _field(
                         label: 'Email',
-                        controller: _emailCtrl,
+                        ctrl: _emailCtrl,
                         enabled: _isEditing,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return null;
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                              .hasMatch(v.trim())) {
-                            return 'Enter a valid email';
-                          }
-                          return null;
-                        },
+                        keyboard: TextInputType.emailAddress,
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                      // ── Physical Metrics ─────────────────────────────
+                      // ── Physical metrics ──────────────────────
                       _sectionTitle('Physical metrics'),
                       const SizedBox(height: 12),
-
-                      _profileField(
-                        label: 'Height',
-                        controller: _heightCtrl,
+                      _field(
+                        label: 'Height (cm)',
+                        ctrl: _heightCtrl,
                         enabled: _isEditing,
-                        hint: 'e.g. 175 cm',
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
+                        keyboard: TextInputType.number,
+                        formatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d.]'))
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      _profileField(
-                        label: 'Weight',
-                        controller: _weightCtrl,
+                      _field(
+                        label: 'Weight (kg)',
+                        ctrl: _weightCtrl,
                         enabled: _isEditing,
-                        hint: 'e.g. 70 kg',
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
+                        keyboard: TextInputType.number,
+                        formatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d.]'))
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      _profileField(
-                        label: 'Target weight',
-                        controller: _targetWeightCtrl,
+                      _field(
+                        label: 'Target weight (kg)',
+                        ctrl: _targetWeightCtrl,
                         enabled: _isEditing,
-                        hint: 'e.g. 65 kg',
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
+                        keyboard: TextInputType.number,
+                        formatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[\d.]'))
                         ],
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                      // ── Activity Level ───────────────────────────────
+                      // ── Activity level ────────────────────────
                       _sectionTitle('Activity level:'),
                       const SizedBox(height: 8),
-
-                      // Activity level radio buttons
-                      _buildActivityLevelSelector(),
+                      _buildActivitySelector(),
 
                       const SizedBox(height: 36),
                     ],
@@ -431,7 +477,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            // ── Log out button pinned at bottom ───────────────────────
+            // ── Log out button ────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: SizedBox(
@@ -442,18 +488,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A1A1A),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                        borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Log out',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: const Text('Log out',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600)),
                 ),
               ),
             ),
@@ -463,11 +505,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Activity Level Selector ──────────────────────────────────────────────
+  // ── Activity level radio selector ─────────────────────────────────────────
 
-  /// Builds the three radio options for Beginner / Intermediate / Advanced.
-  /// Uses Radio widget directly to avoid the deprecated RadioListTile params.
-  Widget _buildActivityLevelSelector() {
+  Widget _buildActivitySelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: ActivityLevel.values.map((level) {
@@ -480,17 +520,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                // Radio circle
-                // Custom radio circle — avoids deprecated Radio widget params
+                // Custom radio circle — avoids deprecated RadioListTile params
                 Container(
                   width: 20,
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF1A1A1A),
-                      width: 2,
-                    ),
+                        color: const Color(0xFF1A1A1A), width: 2),
                   ),
                   child: isSelected
                       ? Center(
@@ -505,8 +542,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   )
                       : null,
                 ),
-                const SizedBox(width: 4),
-                // Label
+                const SizedBox(width: 10),
                 Text(
                   level.label,
                   style: TextStyle(
@@ -527,80 +563,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Reusable widgets ─────────────────────────────────────────────────────
+  // ── Reusable widgets ───────────────────────────────────────────────────────
 
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
+  Widget _sectionTitle(String title) => Text(
+    title,
+    style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w800,
-        color: Color(0xFF1A1A1A),
-      ),
-    );
-  }
+        color: Color(0xFF1A1A1A)),
+  );
 
-  Widget _profileField({
+  Widget _field({
     required String label,
-    required TextEditingController controller,
+    required TextEditingController ctrl,
     required bool enabled,
-    String? hint,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
+    TextInputType keyboard = TextInputType.text,
+    List<TextInputFormatter>? formatters,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A1A),
+  }) =>
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A))),
+          ),
+          Expanded(
+            child: TextFormField(
+              controller: ctrl,
+              enabled: enabled,
+              keyboardType: keyboard,
+              inputFormatters: formatters,
+              validator: validator,
+              onChanged: onChanged,
+              style: TextStyle(
+                  fontSize: 14,
+                  color: enabled
+                      ? const Color(0xFF1A1A1A)
+                      : Colors.black54),
+              decoration: const InputDecoration(
+                enabledBorder: UnderlineInputBorder(
+                    borderSide:
+                    BorderSide(color: Colors.black54, width: 1)),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide:
+                    BorderSide(color: Colors.black, width: 2)),
+                disabledBorder: UnderlineInputBorder(
+                    borderSide:
+                    BorderSide(color: Colors.black26, width: 1)),
+                errorBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                        color: Colors.redAccent, width: 1.5)),
+                errorStyle: TextStyle(
+                    color: Colors.redAccent, fontSize: 11),
+                contentPadding: EdgeInsets.only(bottom: 4),
+                isDense: true,
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: TextFormField(
-            controller: controller,
-            enabled: enabled,
-            keyboardType: keyboardType,
-            inputFormatters: inputFormatters,
-            validator: validator,
-            onChanged: onChanged,
-            style: TextStyle(
-              fontSize: 14,
-              color: enabled ? const Color(0xFF1A1A1A) : Colors.black54,
-            ),
-            decoration: InputDecoration(
-              hintText: enabled ? hint : null,
-              hintStyle:
-              const TextStyle(color: Colors.black38, fontSize: 13),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.black54, width: 1),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.black, width: 2),
-              ),
-              disabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.black26, width: 1),
-              ),
-              errorBorder: const UnderlineInputBorder(
-                borderSide:
-                BorderSide(color: Colors.redAccent, width: 1.5),
-              ),
-              errorStyle: const TextStyle(
-                  color: Colors.redAccent, fontSize: 11),
-              contentPadding: const EdgeInsets.only(bottom: 4),
-              isDense: true,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
 }

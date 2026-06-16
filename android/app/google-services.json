@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "902536488925",
+    "project_id": "shredded-squad",
+    "storage_bucket": "shredded-squad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:902536488925:android:aed1e42ebc9d530437f834",
+        "android_client_info": {
+          "package_name": "com.example.shredded_squad_2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAob29WVLjr1oiqSio4oMer_S6kJgZsvSE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

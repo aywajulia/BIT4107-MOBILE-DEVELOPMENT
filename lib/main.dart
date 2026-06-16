@@ -2,22 +2,32 @@
 /// Location: lib/main.dart
 ///
 /// Entry point for Shredded Squad.
-/// Tabs: Home | PRs | Progress | Profile
-library;
+/// Initialises Firebase before the app starts.
+/// Checks if user is already logged in — skips login if so.
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/peresonal_records_screen.dart';
+import 'screens/nutrition_api_screen.dart';
+import 'screens/personal_records_screen.dart';
 import 'screens/progress_screen.dart';
 import 'screens/profile_screen.dart';
 import 'models/dashboard_models.dart';
 
-void main() {
+void main() async {
+  // Required before any async call in main()
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Connects the Flutter app to your Firebase project
+  // using the google-services.json file
+  await Firebase.initializeApp();
+
   runApp(const ShreddedSquadApp());
 }
+
+// ─── Root App ─────────────────────────────────────────────────────────────────
 
 class ShreddedSquadApp extends StatelessWidget {
   const ShreddedSquadApp({super.key});
@@ -72,40 +82,40 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  final List<MealEntry> _meals = [];
+  final List<MealEntry>     _meals      = [];
   final List<ActivityEntry> _activities = [];
 
-  /// 0=Home  1=PRs  2=Progress  3=Profile
+  /// 0=Home  1=Nutrition  2=PRs  3=Progress  4=Profile
   int _currentIndex = 0;
 
-  void _onMealAdded(MealEntry m) => setState(() => _meals.add(m));
-  void _onMealRemoved(MealEntry m) => setState(() => _meals.remove(m));
-  void _onActivityAdded(ActivityEntry a) =>
-      setState(() => _activities.add(a));
-  void _onActivityRemoved(ActivityEntry a) =>
-      setState(() => _activities.remove(a));
+  void _addMeal(MealEntry m)        => setState(() => _meals.add(m));
+  void _removeMeal(MealEntry m)     => setState(() => _meals.remove(m));
+  void _addActivity(ActivityEntry a)    => setState(() => _activities.add(a));
+  void _removeActivity(ActivityEntry a) => setState(() => _activities.remove(a));
 
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      // Tab 0 — Dashboard (Home)
+      // Tab 0 — Dashboard
       DashboardScreen(
-        meals: _meals,
-        activities: _activities,
-        onMealAdded: _onMealAdded,
-        onMealRemoved: _onMealRemoved,
-        onActivityAdded: _onActivityAdded,
-        onActivityRemoved: _onActivityRemoved,
+        meals:             _meals,
+        activities:        _activities,
+        onMealAdded:       _addMeal,
+        onMealRemoved:     _removeMeal,
+        onActivityAdded:   _addActivity,
+        onActivityRemoved: _removeActivity,
       ),
 
-      // Tab 1 — Personal Records (Week 4 CRUD + SQLite)
-      // Self-contained: FAB, list, forms all in one widget
+      // Tab 1 — Nutrition API
+      NutritionScreen(onMealAdded: _addMeal),
+
+      // Tab 2 — Personal Records (SQLite CRUD)
       const PersonalRecordsScreen(),
 
-      // Tab 2 — Progress & Statistics
+      // Tab 3 — Progress & Statistics
       ProgressScreen(activities: _activities),
 
-      // Tab 3 — Profile
+      // Tab 4 — Profile (Firebase)
       const ProfileScreen(),
     ];
 
@@ -125,7 +135,8 @@ class _BottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const _BottomNav({required this.currentIndex, required this.onTap});
+  const _BottomNav(
+      {required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -138,34 +149,35 @@ class _BottomNav extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _item(Icons.home_outlined,       Icons.home,         0, 'Home'),
-          _item(Icons.emoji_events_outlined, Icons.emoji_events, 1, 'PRs'),
-          _item(Icons.bar_chart_outlined,  Icons.bar_chart,    2, 'Progress'),
-          _item(Icons.person_outline,      Icons.person,       3, 'Profile'),
+          _item(Icons.home_outlined,         Icons.home,         0, 'Home'),
+          _item(Icons.restaurant_outlined,   Icons.restaurant,   1, 'Nutrition'),
+          _item(Icons.emoji_events_outlined, Icons.emoji_events, 2, 'PRs'),
+          _item(Icons.bar_chart_outlined,    Icons.bar_chart,    3, 'Progress'),
+          _item(Icons.person_outline,        Icons.person,       4, 'Profile'),
         ],
       ),
     );
   }
 
-  Widget _item(IconData icon, IconData active, int i, String label) {
-    final sel = currentIndex == i;
+  Widget _item(IconData icon, IconData active, int index, String label) {
+    final sel = currentIndex == index;
     return GestureDetector(
-      onTap: () => onTap(i),
+      onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 72,
+        width: 60,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(sel ? active : icon,
-                size: 24,
+                size: 22,
                 color: sel
                     ? const Color(0xFF1A1A1A)
                     : Colors.black38),
             const SizedBox(height: 2),
             Text(label,
                 style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight:
                     sel ? FontWeight.w700 : FontWeight.w400,
                     color: sel

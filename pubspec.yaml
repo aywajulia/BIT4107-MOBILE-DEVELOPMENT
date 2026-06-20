@@ -1,0 +1,31 @@
+name: shredded_squad_2
+description: A fitness tracking app for logging meals, activities and personal records.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Utilities
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.0.7          # For profile pictures
+  http: ^1.2.1                  # For Nutrition API calls
+  connectivity_plus: ^6.0.3     # Internet connectivity checking
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.0        # for saving profile images locally
+
+  # 🗄️ LOCAL DATABASE (SQLite) – replaces Firebase
+  sqflite: ^2.3.2               # SQLite for Flutter
+  path: ^1.9.0                  # For database file path management
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

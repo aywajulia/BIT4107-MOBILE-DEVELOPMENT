@@ -1,7 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.shredded_squad_2">
 
+    <!-- Required for internet-dependent features -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Required for connectivity_plus to detect network state -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
 
     <application
         android:label="Shredded Squad"

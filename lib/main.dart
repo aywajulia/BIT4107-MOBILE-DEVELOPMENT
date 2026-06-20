@@ -4,6 +4,7 @@
 /// Entry point for Shredded Squad.
 /// Initialises Firebase before the app starts.
 /// Checks if user is already logged in — skips login if so.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';

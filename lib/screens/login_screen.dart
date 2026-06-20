@@ -9,6 +9,7 @@
 ///   • Friendly error messages for wrong password, no account, etc.
 ///   • Loading spinner while Firebase request is in progress
 ///   • Forgot password — sends a reset email via Firebase
+library;
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';

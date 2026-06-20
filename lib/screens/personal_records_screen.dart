@@ -1,19 +1,3 @@
-/// personal_records_screen.dart
-/// Location: lib/screens/personal_records_screen.dart
-///
-/// Personal Records Manager for Shredded Squad — Week 4.
-///
-/// ALL state (records list + FAB + forms) lives in ONE StatefulWidget.
-/// No GlobalKey, no callbacks between parent/child.
-/// This is the simplest, most reliable architecture.
-///
-/// CRUD:
-///   ADD    → FAB opens a bottom sheet form
-///   READ   → list loaded from SQLite on init and after every change
-///   UPDATE → tap a card to open the pre-filled form
-///   DELETE → tap the delete icon on a card → confirmation dialog
-///   SEARCH → search bar filters the list live
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../data/pr_database_helper.dart';

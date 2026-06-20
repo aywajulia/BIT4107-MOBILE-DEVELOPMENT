@@ -1,20 +1,5 @@
-/// profile_service.dart
-/// Location: lib/services/profile_service.dart
-///
 /// Handles saving and loading user profile data
-/// from Cloud Firestore.
-///
-/// Firestore structure:
-///   users/
-///     {uid}/          ← document per user (uid from Firebase Auth)
-///       name
-///       email
-///       height
-///       weight
-///       targetWeight
-///       activityLevel
-///       updatedAt
-
+library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 

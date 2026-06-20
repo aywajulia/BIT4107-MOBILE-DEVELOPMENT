@@ -1,29 +1,28 @@
 name: shredded_squad_2
-description: A new Flutter project.
+description: A fitness tracking app for logging meals, activities and personal records.
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-    flutter:
-      sdk: flutter
-    image_picker: ^1.0.7
-    shared_preferences: ^2.2.3
-    sqflite: ^2.3.2
-    path: ^1.9.0
-    http: ^1.2.1
-    firebase_core: ^3.1.0
-    firebase_auth: ^5.1.0
-    cloud_firestore: ^5.1.0
-    cupertino_icons: ^1.0.8
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.0.7
+  sqflite: ^2.3.2
+  path: ^1.9.0
+  http: ^1.2.1
+  connectivity_plus: ^6.0.3   # internet connectivity checking
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.0
+  cloud_firestore: ^5.5.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
-  uses-material-design:  true
+  uses-material-design: true

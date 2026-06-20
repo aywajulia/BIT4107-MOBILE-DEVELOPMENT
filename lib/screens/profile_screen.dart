@@ -6,6 +6,7 @@
 /// On load:   fetches the user's saved profile from Firestore
 /// On save:   writes updated profile back to Firestore
 /// On logout: signs out via Firebase Auth → navigates to login
+library;
 
 import 'dart:io';
 import 'package:flutter/material.dart';

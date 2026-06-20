@@ -1,136 +1,122 @@
+/// splash_screen.dart
+/// Location: lib/screens/splash_screen.dart
+///
+/// Intro splash screen — checks internet before proceeding.
+/// If no internet → shows NoInternetScreen (app is blocked).
+/// If internet ok  → navigates to LoginScreen after 3 seconds.
+
 import 'package:flutter/material.dart';
-void main() {
-      runApp(const MyApp());
-    }
+import '../services/connectivity_service.dart';
+import 'no_internet_screen.dart';
 
-    class MyApp extends StatelessWidget {
-      const MyApp({super.key});
-      @override
-       Widget build(BuildContext context) {
-        return const MaterialApp(
-          title: 'Shredded Squad',
-           home: SplashScreen(),
-      );
-      }
-     }
-
-  class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Fade-in animation for the logo
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _controller.forward();
+
+    // After 2.5 seconds check internet then navigate
+    Future.delayed(const Duration(milliseconds: 2500), _checkAndNavigate);
   }
 
-  class _SplashScreenState extends State<SplashScreen>
-  with SingleTickerProviderStateMixin {
-    late AnimationController _controller;
-    late Animation<double> _fadeAnimation;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-    @override
-    void initState() {
-      super.initState();
+  /// Checks internet connectivity.
+  /// ✅ Has internet  → go to login screen
+  /// ❌ No internet   → go to no-internet screen (app is blocked)
+  Future<void> _checkAndNavigate() async {
+    if (!mounted) return;
 
-      /// Fade-in the logo over 1.2 seconds
-      _controller = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1200),
-      );
+    final hasInternet = await ConnectivityService.hasInternet();
 
-      _fadeAnimation = CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeIn,
-      );
+    if (!mounted) return;
 
-      // Start the fade
-      _controller.forward();
-
-      // Navigate away after 3 seconds total
-      // Replace the route name '/home' with your actual next screen.
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
-      });
-    }
-
-    @override
-    void dispose() {
-      _controller.dispose();
-      super.dispose();
-    }
-    @override
-    Widget build(BuildContext context) {
-      return Scaffold(
-        // Remove the default AppBar
-        body: Container(
-          // Full-screen warm olive-grey gradient — matches the screenshot
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFEAE8D8), // light warm cream at the top
-                Color(0xFFB5B49A), // muted olive-grey at the bottom
-              ],
-            ),
-          ),
-
-          // Centre the logo vertically and horizontally
-          child: Center(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: const _AppLogo(),
-            ),
-          ),
+    if (hasInternet) {
+      // Internet available — proceed to login
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      // No internet — block the app and show the no-internet screen
+      // The no-internet screen will navigate to '/login' once reconnected
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const NoInternetScreen(nextRoute: '/login'),
         ),
       );
     }
   }
-
-/// Renders the two-line "Shredded / Squad" wordmark.
-///
-/// • "Shredded" — bold, near-black, larger display weight
-/// • "Squad"    — bold, off-white, slightly smaller
-///
-/// Extracted into its own widget so it can be reused on other screens
-/// (e.g. a condensed version in the app bar).
-class _AppLogo extends StatelessWidget {
-  const _AppLogo();
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      mainAxisSize: MainAxisSize.min,
-      // Align text to the left, matching the design
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // "Shredded" line
-        Text(
-          'Shredded',
-          style: TextStyle(
-            fontFamily: 'Roboto', // swap for your brand font if needed
-            fontSize: 52,
-            fontWeight: FontWeight.w900, // heavy / black weight
-            color: Color(0xFF1A1A1A), // near-black
-            height: 1.1,
-            letterSpacing: -0.5,
+    return Scaffold(
+      body: Container(
+        // Warm olive-grey gradient matching the app design
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFEAE8D8), // warm cream top
+              Color(0xFFB5B49A), // olive grey bottom
+            ],
           ),
         ),
-
-        // "Squad" line
-        Text(
-          'Squad',
-          style: TextStyle(
-            fontFamily: 'Roboto',
-            fontSize: 48,
-            fontWeight: FontWeight.w700, // bold
-            color: Color(0xFFF2EFE0), // off-white / cream
-            height: 1.1,
-            letterSpacing: -0.5,
+        child: Center(
+          child: FadeTransition(
+            opacity: _fade,
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // "Shredded" in bold near-black
+                Text(
+                  'Shredded',
+                  style: TextStyle(
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1A1A1A),
+                    height: 1.1,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                // "Squad" in off-white
+                Text(
+                  'Squad',
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFF2EFE0),
+                    height: 1.1,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
-

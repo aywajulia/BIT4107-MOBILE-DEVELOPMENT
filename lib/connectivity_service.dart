@@ -1,11 +1,7 @@
 /// connectivity_service.dart
-/// Location: lib/services/connectivity_service.dart
-///
 /// Checks internet connectivity before the app loads.
 /// The app cannot proceed without an active internet connection.
-///
-/// Add to pubspec.yaml:
-///   connectivity_plus: ^6.0.3
+
 library;
 
 import 'dart:async';

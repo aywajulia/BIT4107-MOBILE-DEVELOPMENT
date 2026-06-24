@@ -1,24 +1,16 @@
 /// progress_screen.dart
-/// Location: lib/screens/progress_screen.dart
-///
-/// The Progress & Statistics screen (4th screen) for Shredded Squad.
-///
-/// Displays:
-///   1. Weekly workout count (No. circle)
-///   2. Weekly calories burned (Kcal circle)
-///   3. Bar chart — Days of the week vs muscle/activity intensity
-///
-/// Data is derived from the same ActivityEntry list used in the dashboard.
-/// In production, pass the list in via constructor or a state-management
-/// solution (Provider, Riverpod, Bloc, etc.).
+/// The Progress & Statistics screen that Displays:
+///   1. Weekly workout count (total sessions)
+///   2. Weekly calories burned (sum)
+///   3. Bar chart — shows Calories Burned per day of the week.
+
 library;
 
 import 'package:flutter/material.dart';
 import '../dashboard_model.dart'; // ActivityEntry model
 
 class ProgressScreen extends StatefulWidget {
-  /// Activities logged by the user (passed from the dashboard / shared state).
-  /// Each entry carries: name, caloriesBurned, durationMinutes, loggedAt.
+  /// Activities logged by the user (passed from AppShell / Dashboard).
   final List<ActivityEntry> activities;
 
   const ProgressScreen({
@@ -73,9 +65,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
   /// Short day labels for the x-axis.
   static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  /// For each day of the week, sum the total duration of all activities.
-  /// Duration is used as the bar height proxy (more time = more muscle work).
-  List<int> get _dailyDurations {
+  /// For each day, sum the total CALORIES BURNED (not duration).
+  List<int> get _dailyCalories {
     return List.generate(7, (i) {
       final day = _weekStart.add(Duration(days: i));
       return _weekActivities
@@ -83,7 +74,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
       a.loggedAt.year == day.year &&
           a.loggedAt.month == day.month &&
           a.loggedAt.day == day.day)
-          .fold(0, (sum, a) => sum + a.durationMinutes);
+          .fold(0, (sum, a) => sum + a.caloriesBurned);
+    });
+  }
+
+  /// For each day, count the number of workouts.
+  List<int> get _dailyWorkoutCounts {
+    return List.generate(7, (i) {
+      final day = _weekStart.add(Duration(days: i));
+      return _weekActivities
+          .where((a) =>
+      a.loggedAt.year == day.year &&
+          a.loggedAt.month == day.month &&
+          a.loggedAt.day == day.day)
+          .length;
     });
   }
 
@@ -170,7 +174,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // ── Bar chart ─────────────────────────────────────────────
+                // ── Bar chart (UPDATED) ──────────────────────────────────
                 _buildBarChart(),
               ],
             ),
@@ -183,7 +187,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
   // ─── Week Navigator ───────────────────────────────────────────────────────
 
   Widget _buildWeekNavigator() {
-    // Format: "Mon 9 Jun – Sun 15 Jun"
     final endOfWeek = _weekStart.add(const Duration(days: 6));
     final weekLabel =
         '${_fmt(_weekStart)} – ${_fmt(endOfWeek)}';
@@ -192,7 +195,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     return Row(
       children: [
-        // Back arrow
         GestureDetector(
           onTap: _previousWeek,
           child: const Icon(Icons.chevron_left,
@@ -221,7 +223,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ],
           ),
         ),
-        // Forward arrow (greyed out on current week)
         GestureDetector(
           onTap: isCurrentWeek ? null : _nextWeek,
           child: Icon(Icons.chevron_right,
@@ -234,7 +235,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  /// Format DateTime to "Mon 9 Jun"
   String _fmt(DateTime d) {
     const months = [
       '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -245,7 +245,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   // ─── Stat Circle ──────────────────────────────────────────────────────────
 
-  /// Black circle displaying a big metric value with a label below it.
   Widget _buildStatCircle({
     required String value,
     required String label,
@@ -253,7 +252,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }) {
     return Column(
       children: [
-        // Circle
         Container(
           width: 110,
           height: 110,
@@ -265,7 +263,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Unit label inside circle (e.g. "Kcal") — omitted for workouts
                 if (unit != null)
                   Text(
                     unit,
@@ -275,7 +272,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                // Main value
                 Text(
                   value,
                   style: const TextStyle(
@@ -285,7 +281,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     height: 1.1,
                   ),
                 ),
-                // "No." label inside circle for workouts
                 if (unit == null)
                   const Text(
                     'No.',
@@ -300,7 +295,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        // Label below the circle
         Text(
           label,
           textAlign: TextAlign.center,
@@ -315,32 +309,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  // ─── Bar Chart ────────────────────────────────────────────────────────────
+  // ─── Bar Chart (UPDATED) ──────────────────────────────────────────────────
 
   Widget _buildBarChart() {
-    final durations = _dailyDurations;
+    final calories = _dailyCalories;
+    final workoutCounts = _dailyWorkoutCounts;
     final names = _dailyActivityNames;
 
-    // Maximum duration this week (used to scale bar heights)
-    final maxDuration = durations.reduce((a, b) => a > b ? a : b);
-    // Avoid division by zero when no data exists
-    final scale = maxDuration == 0 ? 1.0 : maxDuration.toDouble();
+    final maxCalories = calories.reduce((a, b) => a > b ? a : b);
+    final scale = maxCalories == 0 ? 1.0 : maxCalories.toDouble();
 
-    const chartHeight = 180.0; // max bar height in pixels
+    const chartHeight = 180.0;
     const barWidth = 26.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Y-axis label (rotated "MUSCLE") ────────────────────────────
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Rotated Y label
-            const RotatedBox(
+                        const RotatedBox(
               quarterTurns: 3,
               child: Text(
-                'M U S C L E',
+                'K C A L',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -351,10 +342,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ),
             const SizedBox(width: 8),
 
-            // Chart area
             Expanded(
               child: SizedBox(
-                height: chartHeight + 32, // extra for x-axis labels
+                height: chartHeight + 32,
                 child: Column(
                   children: [
                     // Bars
@@ -363,35 +353,36 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: List.generate(7, (i) {
-                          final barH = maxDuration == 0
+                          final barH = maxCalories == 0
                               ? 0.0
-                              : (durations[i] / scale) * chartHeight;
-                          final hasActivity = durations[i] > 0;
+                              : (calories[i] / scale) * chartHeight;
+                          final hasActivity = calories[i] > 0;
 
                           return GestureDetector(
-                            // Tap a bar to see the activity names for that day
                             onTap: hasActivity
                                 ? () => _showDayDetail(
                               _weekDays[i],
                               names[i],
-                              durations[i],
+                              calories[i],
+                              workoutCounts[i],
                             )
                                 : null,
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                // Tooltip dot on active bars
-                                if (hasActivity)
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
+                                                                if (hasActivity)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      '${workoutCounts[i]}x',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                const SizedBox(height: 4),
-                                // The bar itself
+                                // The bar itself (height = calories)
                                 AnimatedContainer(
                                   duration: const Duration(milliseconds: 600),
                                   curve: Curves.easeOut,
@@ -420,8 +411,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       margin: const EdgeInsets.only(left: 4),
                     ),
 
-                    // Day labels
                     const SizedBox(height: 6),
+                    // Day labels
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: _dayLabels
@@ -446,7 +437,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ],
         ),
 
-        // X-axis title
         const SizedBox(height: 12),
         const Center(
           child: Text(
@@ -460,12 +450,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
         ),
 
-        // Empty state hint
-        if (maxDuration == 0) ...[
+               // If there is no data, we show a minimal prompt (optional).
+        if (maxCalories == 0) ...[
           const SizedBox(height: 16),
           const Center(
             child: Text(
-              'Log activities on the dashboard\nto see your weekly chart.',
+              'Log activities to see your weekly calorie burn.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
@@ -477,11 +467,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   // ─── Day detail popup ─────────────────────────────────────────────────────
 
-  /// Shows a dialog with the activities done on a specific day.
   void _showDayDetail(
       DateTime day,
       List<String> activityNames,
-      int totalDuration,
+      int totalCalories,
+      int workoutCount,
       ) {
     showDialog(
       context: context,
@@ -502,7 +492,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Total duration: $totalDuration min',
+              'Total calories: $totalCalories kcal',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            Text(
+              'Workouts: $workoutCount',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 10),
@@ -515,7 +509,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            // List each activity name
             ...activityNames.map(
                   (name) => Padding(
                 padding: const EdgeInsets.only(bottom: 4),

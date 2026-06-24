@@ -2,7 +2,8 @@
 /// Location: lib/main.dart
 ///
 /// Entry point for Shredded Squad.
-/// 🗄️ Uses SQLite for local storage – no Firebase required.
+/// Uses SQLite for local storage – no Firebase.
+/// Updated with Meal History screen as a bottom tab.
 
 library;
 
@@ -14,15 +15,15 @@ import 'nutrition_api_screen.dart';
 import 'personal_records_screen.dart';
 import 'progress_screen.dart';
 import 'profile_screen.dart';
-import 'dashboard_model.dart';
-import 'database_helper.dart';   // added for SQLite
+import '/meal_history_screen.dart';
+import '/meal_entry.dart';
+import '/dashboard_model.dart';
+import 'database_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ShreddedSquadApp());
 }
-
-// ─── Root App ─────────────────────────────────────────────────────────────────
 
 class ShreddedSquadApp extends StatelessWidget {
   const ShreddedSquadApp({super.key});
@@ -40,14 +41,10 @@ class ShreddedSquadApp extends StatelessWidget {
       initialRoute: '/splash',
       onGenerateRoute: (settings) {
         switch (settings.name) {
-          case '/splash':
-            return _fade(const SplashScreen(), settings);
-          case '/login':
-            return _fade(const LoginScreen(), settings);
-          case '/home':
-            return _fade(const AppShell(), settings);
-          default:
-            return _fade(const SplashScreen(), settings);
+          case '/splash': return _fade(const SplashScreen(), settings);
+          case '/login':  return _fade(const LoginScreen(), settings);
+          case '/home':   return _fade(const AppShell(), settings);
+          default:        return _fade(const SplashScreen(), settings);
         }
       },
     );
@@ -57,15 +54,11 @@ class ShreddedSquadApp extends StatelessWidget {
       PageRouteBuilder(
         settings: settings,
         pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: anim, curve: Curves.easeIn),
-          child: child,
-        ),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: CurvedAnimation(parent: anim, curve: Curves.easeIn), child: child),
         transitionDuration: const Duration(milliseconds: 300),
       );
 }
-
-// ─── App Shell ────────────────────────────────────────────────────────────────
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -124,9 +117,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final tabs = [
@@ -141,6 +132,7 @@ class _AppShellState extends State<AppShell> {
       NutritionScreen(onMealAdded: _addMeal),
       const PersonalRecordsScreen(),
       ProgressScreen(activities: _activities),
+      MealHistoryScreen(meals: _meals),
       const ProfileScreen(),
     ];
 
@@ -153,8 +145,6 @@ class _AppShellState extends State<AppShell> {
     );
   }
 }
-
-// ─── Bottom Navigation Bar ────────────────────────────────────────────────────
 
 class _BottomNav extends StatelessWidget {
   final int currentIndex;
@@ -177,7 +167,8 @@ class _BottomNav extends StatelessWidget {
           _item(Icons.restaurant_outlined, Icons.restaurant, 1, 'Nutrition'),
           _item(Icons.emoji_events_outlined, Icons.emoji_events, 2, 'PRs'),
           _item(Icons.bar_chart_outlined, Icons.bar_chart, 3, 'Progress'),
-          _item(Icons.person_outline, Icons.person, 4, 'Profile'),
+          _item(Icons.history, Icons.history, 4, 'History'),
+          _item(Icons.person_outline, Icons.person, 5, 'Profile'),
         ],
       ),
     );
@@ -193,11 +184,7 @@ class _BottomNav extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              sel ? active : icon,
-              size: 22,
-              color: sel ? const Color(0xFF1A1A1A) : Colors.black38,
-            ),
+            Icon(sel ? active : icon, size: 22, color: sel ? const Color(0xFF1A1A1A) : Colors.black38),
             const SizedBox(height: 2),
             Text(
               label,

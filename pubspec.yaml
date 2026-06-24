@@ -17,7 +17,7 @@ dependencies:
   connectivity_plus: ^6.0.3     # Internet connectivity checking
   shared_preferences: ^2.2.2
   path_provider: ^2.1.0        # for saving profile images locally
-
+  pedometer: ^4.0.1
   # 🗄️ LOCAL DATABASE (SQLite) – replaces Firebase
   sqflite: ^2.3.2               # SQLite for Flutter
   path: ^1.9.0                  # For database file path management

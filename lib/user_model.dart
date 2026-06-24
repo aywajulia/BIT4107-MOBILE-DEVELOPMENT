@@ -1,6 +1,4 @@
 /// user_model.dart
-/// Location: lib/models/user_model.dart
-///
 /// Represents a user stored in SQLite.
 library;
 
@@ -13,6 +11,7 @@ class User {
   final String? height;
   final String? weight;
   final String? createdAt;
+  final String? profileImage; // ✅ NEW: stores the file path
 
   User({
     this.id,
@@ -23,6 +22,7 @@ class User {
     this.height,
     this.weight,
     this.createdAt,
+    this.profileImage,
   });
 
   Map<String, dynamic> toMap() => {
@@ -34,6 +34,7 @@ class User {
     'height': height,
     'weight': weight,
     'createdAt': createdAt ?? DateTime.now().toIso8601String(),
+    'profileImage': profileImage,
   };
 
   factory User.fromMap(Map<String, dynamic> map) => User(
@@ -45,5 +46,6 @@ class User {
     height: map['height'],
     weight: map['weight'],
     createdAt: map['createdAt'],
+    profileImage: map['profileImage'],
   );
 }

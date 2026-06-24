@@ -1,14 +1,30 @@
 /// database_helper.dart
 /// Location: lib/database_helper.dart
 ///
-/// Main SQLite helper for Users, Meals, and Activities.
+/// Main SQLite helper for Shredded Squad.
+/// Manages all local data persistence.
+///
+/// Tables:
+///   - users:          authentication, profile, profileImage
+///   - meals:          extended with mealType, quantity, source, loggedDate
+///   - activities:     workout logs with caloriesBurned, duration
+///   - custom_foods:   user‑defined local foods (East African / custom)
+///
+/// Version history:
+///   v1 – initial (users, meals, activities)
+///   v2 – added profileImage to users
+///   v3 – added loggedDate, quantity, source to meals + custom_foods table
+///   v4 – (current) ensures all columns exist and handles upgrades cleanly
+
 library;
 
-import 'package:sqflite/sqflite.dart'; // ignore: library_prefixes
+import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
-import 'dashboard_model.dart';   // ✅ Fixed: was 'dashboard_model.dart' (plural)
+import '/meal_entry.dart';        // extended MealEntry
+import '/dashboard_model.dart';  // ActivityEntry, StepData
 
 class DatabaseHelper {
+  // ── Singleton ──────────────────────────────────────────────────────────────
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
@@ -21,18 +37,23 @@ class DatabaseHelper {
     return _database!;
   }
 
+  // ─── Initialise ─────────────────────────────────────────────────────────────
+
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final fullPath = path.join(dbPath, 'shredded_squad.db');
 
     return await openDatabase(
       fullPath,
-      version: 2,
+      version: 4, // ✅ bumped to 4 to ensure all columns exist
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
+  /// Called when the database is created from scratch (first run).
   Future<void> _onCreate(Database db, int version) async {
+    // ─── Users table (includes profileImage) ──────────────────────────────
     await db.execute('''
       CREATE TABLE users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,23 +63,29 @@ class DatabaseHelper {
         password TEXT,
         height TEXT,
         weight TEXT,
-        createdAt TEXT
+        createdAt TEXT,
+        profileImage TEXT   -- ✅ file path to saved profile picture
       )
     ''');
 
+    // ─── Meals table (extended) ──────────────────────────────────────────
     await db.execute('''
       CREATE TABLE meals(
         id TEXT PRIMARY KEY,
         name TEXT,
-        mealType TEXT,
+        mealType TEXT,          -- 'breakfast', 'lunch', 'dinner', 'snack'
         calories INTEGER,
         protein REAL,
         carbs REAL,
         fat REAL,
-        loggedAt TEXT
+        loggedAt TEXT,          -- full timestamp
+        loggedDate TEXT,        -- YYYY-MM-DD for grouping
+        quantity REAL,          -- grams consumed
+        source TEXT             -- 'api' or 'custom'
       )
     ''');
 
+    // ─── Activities table ─────────────────────────────────────────────────
     await db.execute('''
       CREATE TABLE activities(
         id TEXT PRIMARY KEY,
@@ -68,11 +95,65 @@ class DatabaseHelper {
         loggedAt TEXT
       )
     ''');
+
+    // ─── Custom Foods table ──────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE custom_foods(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        caloriesPer100g INTEGER NOT NULL,
+        protein REAL,
+        carbs REAL,
+        fat REAL,
+        category TEXT,
+        createdAt TEXT
+      )
+    ''');
   }
 
-  // ──────────────────────────────────────────────
-  // USERS
-  // ──────────────────────────────────────────────
+  /// Called when upgrading from an older version to a newer one.
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add profileImage column to users (originally added in v2)
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN profileImage TEXT');
+      } catch (_) {} // column already exists
+    }
+
+    if (oldVersion < 3) {
+      // Add extended columns to meals (v3)
+      try {
+        await db.execute('ALTER TABLE meals ADD COLUMN loggedDate TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE meals ADD COLUMN quantity REAL');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE meals ADD COLUMN source TEXT');
+      } catch (_) {}
+
+      // Create custom_foods table (v3)
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS custom_foods(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          caloriesPer100g INTEGER NOT NULL,
+          protein REAL,
+          carbs REAL,
+          fat REAL,
+          category TEXT,
+          createdAt TEXT
+        )
+      ''');
+    }
+
+    // Version 4 ensures all columns exist – no new columns added,
+    // but we keep it to force a clean upgrade path.
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // USERS (CRUD)
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<int> insertUser(Map<String, dynamic> user) async {
     final db = await database;
@@ -86,8 +167,7 @@ class DatabaseHelper {
       where: 'email = ?',
       whereArgs: [email],
     );
-    if (result.isNotEmpty) return result.first;
-    return null;
+    return result.isNotEmpty ? result.first : null;
   }
 
   Future<Map<String, dynamic>?> getUserByUid(String uid) async {
@@ -97,8 +177,7 @@ class DatabaseHelper {
       where: 'uid = ?',
       whereArgs: [uid],
     );
-    if (result.isNotEmpty) return result.first;
-    return null;
+    return result.isNotEmpty ? result.first : null;
   }
 
   Future<int> updateUser(String uid, Map<String, dynamic> updates) async {
@@ -111,9 +190,9 @@ class DatabaseHelper {
     );
   }
 
-  // ──────────────────────────────────────────────
-  // MEALS
-  // ──────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // MEALS (extended CRUD)
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> insertMeal(MealEntry meal) async {
     final db = await database;
@@ -123,6 +202,30 @@ class DatabaseHelper {
   Future<List<MealEntry>> getAllMeals() async {
     final db = await database;
     final result = await db.query('meals', orderBy: 'loggedAt DESC');
+    return result.map((map) => MealEntry.fromMap(map)).toList();
+  }
+
+  Future<List<MealEntry>> getMealsByDate(String date) async {
+    final db = await database;
+    final result = await db.query(
+      'meals',
+      where: 'loggedDate = ?',
+      whereArgs: [date],
+      orderBy: 'loggedAt ASC',
+    );
+    return result.map((map) => MealEntry.fromMap(map)).toList();
+  }
+
+  Future<List<MealEntry>> getMealsBetween(DateTime start, DateTime end) async {
+    final db = await database;
+    final startKey = start.toIso8601String().split('T').first;
+    final endKey = end.toIso8601String().split('T').first;
+    final result = await db.query(
+      'meals',
+      where: 'loggedDate >= ? AND loggedDate <= ?',
+      whereArgs: [startKey, endKey],
+      orderBy: 'loggedAt DESC',
+    );
     return result.map((map) => MealEntry.fromMap(map)).toList();
   }
 
@@ -136,9 +239,9 @@ class DatabaseHelper {
     await db.delete('meals');
   }
 
-  // ──────────────────────────────────────────────
-  // ACTIVITIES
-  // ──────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // ACTIVITIES (CRUD)
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> insertActivity(ActivityEntry activity) async {
     final db = await database;
@@ -159,5 +262,54 @@ class DatabaseHelper {
   Future<void> deleteAllActivities() async {
     final db = await database;
     await db.delete('activities');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // CUSTOM FOODS (CRUD)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Future<int> insertCustomFood(Map<String, dynamic> food) async {
+    final db = await database;
+    return await db.insert('custom_foods', food);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllCustomFoods() async {
+    final db = await database;
+    return await db.query('custom_foods', orderBy: 'name ASC');
+  }
+
+  Future<List<Map<String, dynamic>>> searchCustomFoods(String query) async {
+    final db = await database;
+    return await db.query(
+      'custom_foods',
+      where: 'LOWER(name) LIKE ?',
+      whereArgs: ['%${query.toLowerCase()}%'],
+      orderBy: 'name ASC',
+    );
+  }
+
+  Future<Map<String, dynamic>?> getCustomFoodById(int id) async {
+    final db = await database;
+    final result = await db.query(
+      'custom_foods',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<int> deleteCustomFood(int id) async {
+    final db = await database;
+    return await db.delete(
+      'custom_foods',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Delete all custom foods (use with caution).
+  Future<void> deleteAllCustomFoods() async {
+    final db = await database;
+    await db.delete('custom_foods');
   }
 }

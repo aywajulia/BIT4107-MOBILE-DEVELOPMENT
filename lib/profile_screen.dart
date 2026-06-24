@@ -1,17 +1,6 @@
 /// profile_screen.dart
-/// Location: lib/screens/profile_screen.dart
-///
-/// Profile screen – now uses SQLite for local storage.
-///
-/// On load:   loads the user's profile from SQLite using the stored UID.
-/// On save:   updates the user's profile in SQLite.
-/// On logout: clears the local session and navigates to login.
-/// Profile photo: stored as a local file path in SQLite (image saved in app's documents).
+/// Profile screen – allows users to view, edit, and save their personal data.
 
-/// profile_screen.dart
-/// Location: lib/screens/profile_screen.dart (or just lib/)
-///
-/// Profile screen – now uses SQLite for local storage.
 
 library;
 
@@ -22,8 +11,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'database_helper.dart';   // ✅ main helper for users
-import 'user_model.dart';        // ✅ User model
+import 'database_helper.dart';
+import 'user_model.dart';
 
 
 // ── Activity level enum ────────────────────────────────────────────────────────
@@ -50,7 +39,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // ── Form ──────────────────────────────────────────────────────────────────
+  // ── Form Controllers ──────────────────────────────────────────────────────
   final _formKey          = GlobalKey<FormState>();
   final _nameCtrl         = TextEditingController();
   final _emailCtrl        = TextEditingController();
@@ -58,15 +47,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _weightCtrl       = TextEditingController();
   final _targetWeightCtrl = TextEditingController();
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── State Variables ───────────────────────────────────────────────────────
   ActivityLevel _activityLevel = ActivityLevel.beginner;
-  String? _profileImagePath;  // local file path
+  String? _profileImagePath;        // local file path
   bool   _isEditing  = false;
   bool   _isSaving   = false;
   bool   _isLoading  = true;
 
-  // Logged-in user UID (retrieved from SharedPreferences)
-  String? _currentUid;
+  String? _currentUid;              // logged-in user UID
 
   @override
   void initState() {
@@ -84,27 +72,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // ── Load from SQLite ──────────────────────────────────────────────────────
+  // ─── Load Profile from SQLite ────────────────────────────────────────────
 
-  /// Retrieves the stored user UID from SharedPreferences,
-  /// then loads the corresponding user data from SQLite.
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Get the logged-in user UID from SharedPreferences
+      // 1. Get the current user's UID from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       _currentUid = prefs.getString('user_uid');
+      debugPrint('Profile: loaded UID -> $_currentUid');
 
       if (_currentUid == null) {
-        // No session – should not happen if login screen works, but handle gracefully
+        debugPrint('Profile: No user logged in');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
-      // 2. Query SQLite for the user
+      // 2. Query the database for this user
       final db = DatabaseHelper();
       final userMap = await db.getUserByUid(_currentUid!);
+      debugPrint('Profile: userMap = $userMap');
 
       if (userMap != null) {
         final user = User.fromMap(userMap);
@@ -113,23 +101,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _emailCtrl.text        = user.email;
           _heightCtrl.text       = user.height ?? '';
           _weightCtrl.text       = user.weight ?? '';
-          _targetWeightCtrl.text = ''; // targetWeight not stored in User model – we can add later
-          _profileImagePath      = null; // we don't store image path yet – will add later
+          _targetWeightCtrl.text = ''; // not stored in this version
+          _profileImagePath      = user.profileImage; // load saved path
         });
+        debugPrint('Profile: loaded image path -> $_profileImagePath');
       } else {
-        // User record not found – maybe use defaults
         _showError('Profile not found.');
       }
     } catch (e) {
       _showError('Failed to load profile: $e');
+      debugPrint('Profile load error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── Save to SQLite ────────────────────────────────────────────────────────
+  // ─── Save Profile to SQLite ──────────────────────────────────────────────
 
-  /// Validates the form and updates the user's record in SQLite.
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
@@ -139,24 +127,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final db = DatabaseHelper();
 
-      // Build the update map
+      // Build the updates map – includes the profileImage path
       final updates = {
-        'name':         _nameCtrl.text.trim(),
-        'email':        _emailCtrl.text.trim(),
-        'height':       _heightCtrl.text.trim().isEmpty ? null : _heightCtrl.text.trim(),
-        'weight':       _weightCtrl.text.trim().isEmpty ? null : _weightCtrl.text.trim(),
-        // optional: add targetWeight and activityLevel fields to User table later
+        'name':          _nameCtrl.text.trim(),
+        'email':         _emailCtrl.text.trim(),
+        'height':        _heightCtrl.text.trim().isEmpty ? null : _heightCtrl.text.trim(),
+        'weight':        _weightCtrl.text.trim().isEmpty ? null : _weightCtrl.text.trim(),
+        'profileImage':  _profileImagePath,
       };
+      debugPrint('Profile: saving updates -> $updates');
 
-      // Update SQLite
       await db.updateUser(_currentUid!, updates);
-
-      // If there is a new profile image, save it to a local folder and store path
-      if (_profileImagePath != null) {
-        // You can extend User model to include profileImagePath
-        // For now, we'll just ignore or save as a separate table
-        // In a real app, you'd save the image to app's documents and store the path.
-      }
 
       if (mounted) {
         setState(() {
@@ -165,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Profile saved locally ✅'),
+            content: Text('Profile saved!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -175,10 +156,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isSaving = false);
         _showError('Failed to save: $e');
       }
+      debugPrint('Profile save error: $e');
     }
   }
 
-  // ── Profile picture ────────────────────────────────────────────────────────
+  // ─── Profile Picture Methods ─────────────────────────────────────────────
 
   void _showImageSourceSheet() {
     showModalBottomSheet(
@@ -225,7 +207,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(color: Colors.redAccent)),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _profileImagePath = null);
+                  setState(() {
+                    // Delete the file
+                    final file = File(_profileImagePath!);
+                    if (file.existsSync()) file.deleteSync();
+                    _profileImagePath = null;
+                    // Optionally auto-save after removal
+                    if (_isEditing) {
+                      _saveProfile();
+                    }
+                  });
                 },
               ),
             const SizedBox(height: 8),
@@ -244,17 +235,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         imageQuality: 85,
       );
       if (picked != null) {
-        // Save the image to app's local documents folder
+        // Save the image to the app's documents folder
         final dir = await getApplicationDocumentsDirectory();
         final fileName = 'profile_${_currentUid ?? 'user'}.jpg';
         final localFile = File(path.join(dir.path, fileName));
         await File(picked.path).copy(localFile.path);
         setState(() => _profileImagePath = localFile.path);
+        debugPrint('Profile: image saved to $_profileImagePath');
+        // If we are in edit mode, auto-save the profile
+        if (_isEditing) {
+          await _saveProfile();
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Profile: image pick error $e');
+      _showError('Could not pick image.');
+    }
   }
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ─── Logout ───────────────────────────────────────────────────────────────
 
   void _handleLogout() {
     showDialog(
@@ -286,7 +285,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('user_uid');
               if (mounted) {
-                // Go back to login screen
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   '/login',
                       (route) => false,
@@ -309,7 +307,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ));
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // ─── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -380,7 +378,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: Color(0xFF1A1A1A),
                               ),
                             ),
-                            // Show the local UID (for reference)
                             Text(
                               'UID: ${_currentUid?.substring(0, 8) ?? ''}...',
                               style: const TextStyle(
@@ -545,7 +542,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                // Custom radio circle
                 Container(
                   width: 20,
                   height: 20,

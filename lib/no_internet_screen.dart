@@ -79,7 +79,7 @@ class _NoInternetScreenState extends State<NoInternetScreen>
         // Shake the error message to indicate still no internet
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Still no internet connection. Please check your network.'),
+            content: Text('Please check your network.'),
             backgroundColor: Colors.redAccent,
             duration: Duration(seconds: 3),
           ),
@@ -158,7 +158,7 @@ class _NoInternetScreenState extends State<NoInternetScreen>
 
                 // ── Explanation ────────────────────────────────────────
                 const Text(
-                  'Shredded Squad requires an active internet connection to sync your data, fetch nutrition information and keep your progress up to date.',
+                  'Check your internet connection to access the app',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,

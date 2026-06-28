@@ -6,7 +6,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../meal_entry.dart';
+import '../model/meal_entry.dart';
 
 class MealHistoryScreen extends StatelessWidget {
   final List<MealEntry> meals;

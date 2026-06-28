@@ -1,24 +1,29 @@
 /// main.dart
-/// Location: lib/main.dart
-///
 /// Entry point for Shredded Squad.
-/// Uses SQLite for local storage – no Firebase.
-/// Updated with Meal History screen as a bottom tab.
+/// Uses SQLite for local storage
+///   - Swipe gestures on Dashboard (SwipeController)
+///   - Event logging (EventLogger)
 
 library;
 
 import 'package:flutter/material.dart';
-import 'splash_screen.dart';
-import 'login_screen.dart';
-import 'dashboard_screen.dart';
-import 'nutrition_api_screen.dart';
-import 'personal_records_screen.dart';
-import 'progress_screen.dart';
-import 'profile_screen.dart';
-import '/meal_history_screen.dart';
-import '/meal_entry.dart';
-import '/dashboard_model.dart';
-import 'database_helper.dart';
+
+// Screen imports (flat structure)
+import 'screen/splash_screen.dart';
+import 'screen/login_screen.dart';
+import 'screen/dashboard_screen.dart';
+import 'screen/nutrition_api_screen.dart';
+import 'screen/personal_records_screen.dart';
+import 'screen/progress_screen.dart';
+import 'screen/profile_screen.dart';
+import 'screen/meal_history_screen.dart';
+
+// Model & database imports
+import 'model/meal_entry.dart';
+import 'model/dashboard_model.dart';
+import 'service/database_helper.dart';
+import 'handlers/swipe_controller.dart';
+import 'service/event_logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,16 +73,23 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  // ── Data ──────────────────────────────────────────────────────────────────
   List<MealEntry> _meals = [];
   List<ActivityEntry> _activities = [];
   int _currentIndex = 0;
   bool _isLoading = true;
 
+  // ── Swipe Controller (Week 8) ──────────────────────────────────────────
+  late SwipeController _swipeController;
+
   @override
   void initState() {
     super.initState();
+    _swipeController = SwipeController(totalTabs: 6, initialIndex: 0);
     _loadData();
   }
+
+  // ── Data Load / Persistence ──────────────────────────────────────────────
 
   Future<void> _loadData() async {
     final db = DatabaseHelper();
@@ -94,25 +106,31 @@ class _AppShellState extends State<AppShell> {
     final db = DatabaseHelper();
     await db.insertMeal(m);
     setState(() => _meals.add(m));
+    EventLogger.logEvent('Meal_Added', screen: 'Dashboard', data: m.name);
   }
 
   void _removeMeal(MealEntry m) async {
     final db = DatabaseHelper();
     await db.deleteMeal(m.id);
     setState(() => _meals.remove(m));
+    EventLogger.logEvent('Meal_Removed', screen: 'Dashboard', data: m.name);
   }
 
   void _addActivity(ActivityEntry a) async {
     final db = DatabaseHelper();
     await db.insertActivity(a);
     setState(() => _activities.add(a));
+    EventLogger.logEvent('Activity_Added', screen: 'Dashboard', data: a.name);
   }
 
   void _removeActivity(ActivityEntry a) async {
     final db = DatabaseHelper();
     await db.deleteActivity(a.id);
     setState(() => _activities.remove(a));
+    EventLogger.logEvent('Activity_Removed', screen: 'Dashboard', data: a.name);
   }
+
+  // ─── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +155,26 @@ class _AppShellState extends State<AppShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: tabs),
+      // Wrap body with GestureDetector to handle Swipe gestures
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity != null) {
+            int newIndex;
+            if (details.primaryVelocity! < 0) {
+              // Swipe left -> go to next tab
+              newIndex = _swipeController.onSwipeLeft();
+            } else {
+              // Swipe right -> go to previous tab
+              newIndex = _swipeController.onSwipeRight();
+            }
+            setState(() {
+              _currentIndex = newIndex;
+            });
+            EventLogger.logEvent('Swipe', screen: 'Dashboard', data: 'New index: $_currentIndex');
+          }
+        },
+        child: IndexedStack(index: _currentIndex, children: tabs),
+      ),
       bottomNavigationBar: _BottomNav(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),

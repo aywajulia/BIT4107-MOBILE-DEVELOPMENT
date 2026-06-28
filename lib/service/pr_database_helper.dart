@@ -1,12 +1,11 @@
 /// pr_database_helper.dart
-/// Location: lib/data/pr_database_helper.dart
 /// SQLite helper for Personal Records.
 /// Provides full CRUD — insert, getAll, search, update, delete.
 library;
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../personal_record_model.dart';
+import '../model/personal_record_model.dart';
 
 class PRDatabaseHelper {
   // Singleton — only one DB instance throughout the app

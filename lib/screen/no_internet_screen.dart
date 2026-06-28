@@ -8,7 +8,7 @@ library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../connectivity_service.dart';
+import '../service/connectivity_service.dart';
 
 class NoInternetScreen extends StatefulWidget {
   /// The route to navigate to once internet is restored.
@@ -168,19 +168,6 @@ class _NoInternetScreenState extends State<NoInternetScreen>
                 ),
 
                 const SizedBox(height: 32),
-
-                // ── Checklist of what needs internet ───────────────────
-                _buildRequirementRow(
-                    Icons.cloud_sync_outlined, 'Syncing your profile data'),
-                const SizedBox(height: 10),
-                _buildRequirementRow(
-                    Icons.restaurant_outlined, 'Searching the nutrition database'),
-                const SizedBox(height: 10),
-                _buildRequirementRow(
-                    Icons.bar_chart_outlined, 'Loading your weekly progress'),
-
-                const SizedBox(height: 40),
-
                 // ── Try again button ───────────────────────────────────
                 SizedBox(
                   width: double.infinity,
@@ -233,31 +220,4 @@ class _NoInternetScreenState extends State<NoInternetScreen>
     );
   }
 
-  /// Builds a single row showing a feature that requires internet.
-  Widget _buildRequirementRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 18, color: const Color(0xFF1A1A1A)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Colors.black54,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

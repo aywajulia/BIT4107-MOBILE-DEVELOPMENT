@@ -11,7 +11,7 @@ class User {
   final String? height;
   final String? weight;
   final String? createdAt;
-  final String? profileImage; // ✅ NEW: stores the file path
+  final String? profileImage;
 
   User({
     this.id,

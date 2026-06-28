@@ -4,7 +4,7 @@
 /// Uses the main DatabaseHelper internally.
 library;
 
-import '../database_helper.dart';
+import 'database_helper.dart';
 
 /// Model class for a custom food item.
 class CustomFood {

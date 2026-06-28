@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../pr_database_helper.dart';
-import '../personal_record_model.dart';
+import '../service/pr_database_helper.dart';
+import '../model/personal_record_model.dart';
 
 // Available units for the dropdown
 const _units = ['kg', 'lbs', 'reps', 'min', 'sec', 'km', 'm'];
@@ -61,7 +61,7 @@ class _PersonalRecordsScreenState
   Future<void> _insert(PersonalRecord pr) async {
     await PRDatabaseHelper.instance.insertPR(pr);
     await _load(); // reload so the new record appears immediately
-    _snack('${pr.exercise} PR logged! 🏆', Colors.green.shade700);
+    _snack('${pr.exercise} PR logged! ', Colors.green.shade700);
   }
 
   /// UPDATE — saves changes to an existing record then reloads
@@ -126,7 +126,7 @@ class _PersonalRecordsScreenState
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '🏆 ${_records.length} PRs',
+                        ' ${_records.length} PRs',
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -417,7 +417,7 @@ class _PersonalRecordsScreenState
                 children: [
                   // Sheet title
                   Text(
-                    isEditing ? 'Edit PR' : 'Log New PR 🏆',
+                    isEditing ? 'Edit PR' : 'Log New PR ',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,

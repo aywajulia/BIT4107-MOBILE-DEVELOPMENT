@@ -1,12 +1,5 @@
 /// dashboard_model.dart
-/// Location: lib/dashboard_model.dart
-///
 /// Contains data models used by the Dashboard:
-///   • ActivityEntry — a single logged exercise activity
-///   • StepData    — daily step count vs target (not persisted)
-///
-/// Note: MealEntry is now defined in meal_entry.dart.
-
 library;
 
 // ─── Activity Model ───────────────────────────────────────────────────────────

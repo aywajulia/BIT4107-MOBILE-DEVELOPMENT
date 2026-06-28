@@ -7,7 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../dashboard_model.dart'; // ActivityEntry model
+import '../model/dashboard_model.dart'; // ActivityEntry model
 
 class ProgressScreen extends StatefulWidget {
   /// Activities logged by the user (passed from AppShell / Dashboard).

@@ -15,8 +15,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import '../meal_entry.dart';
-import '../custom_food_service.dart';
+import '../model/meal_entry.dart';
+import '../service/custom_food_service.dart';
 
 class _FoodApiService {
   static const _primaryUrl = 'https://world.openfoodfacts.org/cgi/search.pl';

@@ -10,7 +10,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // for auto-login
-import 'connectivity_service.dart';   // ✅ fixed import (no leading slash)
+import '../service/connectivity_service.dart';
 import 'no_internet_screen.dart';
 
 class SplashScreen extends StatefulWidget {

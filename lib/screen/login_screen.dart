@@ -1,23 +1,24 @@
 /// login_screen.dart
-/// Location: lib/screens/login_screen.dart
+/// Location: lib/login_screen.dart
 ///
-/// Login screen – now uses SQLite for authentication.
-///
+/// Login screen – now uses OOP validators and keyboard handler.
 /// Features:
-///   • Login with email + password (stored in SQLite)
-///   • Sign up with email + password (saved to SQLite)
-///   • Friendly error messages for wrong password, no account, etc.
-///   • Loading spinner while SQLite query is in progress
-///   • Forgot password – simply shows a message (no email service)
-///
-/// 🗄️ All user data is stored locally in SQLite.
+///   • Login with email + password (SQLite)
+///   • Sign up with email + password (SQLite)
+///   • Real‑time validation via AuthValidator class
+///   • Press "Done" on keyboard to submit (KeyboardActionHandler)
+///   • Event logging via EventLogger
 
 library;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'database_helper.dart';
-import 'user_model.dart';
+import '../validators/auth_validator.dart';
+import '../handlers/keyboard_handler.dart';
+import '../service/event_logger.dart';
+
+import '../service/database_helper.dart';
+import '../model/user_model.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,28 +28,56 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // ── Form ──────────────────────────────────────────────────────────────────
   final _formKey    = GlobalKey<FormState>();
   final _emailCtrl  = TextEditingController();
   final _passCtrl   = TextEditingController();
 
-  bool _obscurePassword = true; // toggle show/hide password
-  bool _isLoading       = false; // show spinner while SQLite query runs
-  bool _isSignUpMode    = false; // toggle between Login and Sign Up
+  bool _obscurePassword = true;
+  bool _isLoading       = false;
+  bool _isSignUpMode    = false;
+
+  late KeyboardActionHandler _keyboardHandler;
+
+  // Focus node to manage keyboard focus
+  final FocusNode _emailFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _keyboardHandler = KeyboardActionHandler(
+      onEnterPressed: _handleLogin,
+    );
+  }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  /// Queries SQLite for the user with the given email.
-  /// If found and password matches, login succeeds and session is saved.
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 1. Validate using the OOP validator class
+    final emailError = AuthValidator.validateEmail(_emailCtrl.text);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+    final passError = AuthValidator.validatePassword(_passCtrl.text);
+    if (passError != null) {
+      _showError(passError);
+      return;
+    }
+
+    // 2. Log the attempt
+    EventLogger.logEvent('Login_Attempt', screen: 'Login', data: _emailCtrl.text.trim());
+
+    // 3. Proceed with SQLite login
     setState(() => _isLoading = true);
 
     try {
@@ -56,7 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailCtrl.text.trim();
       final password = _passCtrl.text;
 
-      // 1. Query user by email
       final userMap = await db.getUserByEmail(email);
 
       if (userMap == null) {
@@ -64,22 +92,22 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // 2. Verify password (plain text comparison – for demo; use hashing in production)
       if (userMap['password'] != password) {
         _showError('Incorrect password. Please try again.');
         return;
       }
 
-      // 3. Login successful – save session (UID) to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_uid', userMap['uid']);
+
+      EventLogger.logEvent('Login_Success', screen: 'Login', data: email);
 
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       _showError('Something went wrong. Please try again.');
-      debugPrint('Login error: $e');
+      EventLogger.logEvent('Login_Error', screen: 'Login', data: e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -87,10 +115,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── Sign up ────────────────────────────────────────────────────────────────
 
-  /// Inserts a new user into SQLite.
-  /// Generates a unique UID (using timestamp) and saves the user.
   Future<void> _handleSignUp() async {
-    if (!_formKey.currentState!.validate()) return;
+    final emailError = AuthValidator.validateEmail(_emailCtrl.text);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+    final passError = AuthValidator.validatePassword(_passCtrl.text);
+    if (passError != null) {
+      _showError(passError);
+      return;
+    }
+
+    EventLogger.logEvent('SignUp_Attempt', screen: 'Login', data: _emailCtrl.text.trim());
+
     setState(() => _isLoading = true);
 
     try {
@@ -98,55 +136,47 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailCtrl.text.trim();
       final password = _passCtrl.text;
 
-      // 1. Check if email already exists
       final existing = await db.getUserByEmail(email);
       if (existing != null) {
         _showError('An account with this email already exists.');
         return;
       }
 
-      // 2. Generate a unique UID (using timestamp)
       final uid = DateTime.now().millisecondsSinceEpoch.toString();
 
-      // 3. Create a User object
       final newUser = User(
         uid: uid,
-        name: email.split('@')[0], // default name from email
+        name: email.split('@')[0],
         email: email,
-        password: password, // plain text – consider hashing in real app
+        password: password,
         createdAt: DateTime.now().toIso8601String(),
       );
 
-      // 4. Insert into SQLite
       await db.insertUser(newUser.toMap());
 
-      // 5. Save session
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_uid', uid);
+
+      EventLogger.logEvent('SignUp_Success', screen: 'Login', data: email);
 
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       _showError('Sign up failed. Please try again.');
-      debugPrint('SignUp error: $e');
+      EventLogger.logEvent('SignUp_Error', screen: 'Login', data: e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── Forgot password ────────────────────────────────────────────────────────
-
-  /// Since we're using SQLite, there's no email service.
-  /// We show a simple dialog informing the user to contact the developer.
   void _handleForgotPassword() {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Reset Password'),
         content: const Text(
-          'Password reset is not available in the local version. '
-              'Please contact the developer to reset your password.',
+          'Please contact the developer to reset your password.',
         ),
         actions: [
           TextButton(
@@ -187,7 +217,6 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 24),
 
-                // App name
                 const Text(
                   'Shredded\nSquad',
                   textAlign: TextAlign.center,
@@ -201,7 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 32),
 
-                // Dark card
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
@@ -214,7 +242,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title changes between Login and Sign Up
                         Center(
                           child: Text(
                             _isSignUpMode ? 'Sign Up' : 'Login',
@@ -228,11 +255,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 32),
 
-                        // Email field
+                        // ── Email Field ──────────────────────────────────
                         _buildField(
                           controller: _emailCtrl,
                           label: 'Email',
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next, //  Next goes to password
+                          focusNode: _emailFocusNode,
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) {
                               return 'Enter your email';
@@ -243,15 +272,21 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             return null;
                           },
+                          onFieldSubmitted: (_) {
+                            // Move focus to password field
+                            FocusScope.of(context).requestFocus(_passwordFocusNode);
+                          },
                         ),
 
                         const SizedBox(height: 20),
 
-                        // Password field
+                        // ── Password Field ───────────────────────────────
                         _buildField(
                           controller: _passCtrl,
                           label: 'Password',
                           obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done, //  Done triggers login
+                          focusNode: _passwordFocusNode,
                           validator: (v) {
                             if (v == null || v.isEmpty) {
                               return 'Enter your password';
@@ -272,11 +307,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () => setState(
                                     () => _obscurePassword = !_obscurePassword),
                           ),
+                          onFieldSubmitted: (_) {
+                            //  This is the key – triggers login when "Done" is pressed
+                            _keyboardHandler.handleSubmit('');
+                          },
                         ),
 
                         const SizedBox(height: 28),
 
-                        // Main action button — Login or Sign Up
                         _buildButton(
                           label: _isSignUpMode ? 'Create Account' : 'Login',
                           isLoading: _isLoading,
@@ -285,7 +323,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 16),
 
-                        // Forgot password — only shown in login mode
                         if (!_isSignUpMode)
                           Center(
                             child: GestureDetector(
@@ -303,7 +340,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 20),
 
-                        // Toggle between Login and Sign Up
                         Center(
                           child: GestureDetector(
                             onTap: () => setState(
@@ -343,12 +379,18 @@ class _LoginScreenState extends State<LoginScreen> {
     bool obscureText = false,
     String? Function(String?)? validator,
     Widget? suffixIcon,
+    void Function(String)? onFieldSubmitted,
+    TextInputAction? textInputAction,
+    FocusNode? focusNode,
   }) =>
       TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         obscureText: obscureText,
         validator: validator,
+        onFieldSubmitted: onFieldSubmitted,
+        textInputAction: textInputAction,
+        focusNode: focusNode,
         style: const TextStyle(color: Colors.white, fontSize: 16),
         decoration: InputDecoration(
           labelText: label,

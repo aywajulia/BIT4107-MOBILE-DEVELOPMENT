@@ -1,14 +1,9 @@
 /// dashboard_screen.dart
-/// Location: lib/dashboard_screen.dart
+/// Location: lib/screen/dashboard_screen.dart
 ///
-/// The main dashboard screen for Shredded Squad.
-/// Updated with Week 8 Long Press Handler for meals.
-///
-/// Features:
-///   • Daily progress ring (steps via pedometer)
-///   • Meal logging with auto‑calorie calculation (quantity based)
-///   • Activity logging with MET‑based auto‑calorie burn
-///   • ✅ Long press a meal to show a context menu (OOP handler)
+/// Main dashboard – now with:
+///   • Accelerometer-based step counter
+///   • GPS tracking in activity logging (distance + pace)
 
 library;
 
@@ -16,14 +11,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Models
+// ─── Models ─────────────────────────────────────────────────────────────────
 import '../model/meal_entry.dart';
 import '../model/dashboard_model.dart';
 
-// Services & Handlers
+// ─── Services ────────────────────────────────────────────────────────────────
 import '../service/activity_calorie_service.dart';
 import '../service/database_helper.dart';
 import '../service/step_service.dart';
+import '../service/location_service.dart';
+
+// ─── Handlers ────────────────────────────────────────────────────────────────
 import '../handlers/long_press_handlers.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -49,14 +47,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // ─── Step Data ────────────────────────────────────────────────────────────
   StepData _stepData = const StepData(currentSteps: 0, targetSteps: 10000);
   Stream<int>? _stepStream;
-
-  // ─── User Weight ──────────────────────────────────────────────────────────
   double _userWeightKg = 70.0;
-
-  // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -68,6 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _stepStream = null;
+    StepService.dispose();
     super.dispose();
   }
 
@@ -85,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     } catch (e) {
-      // ignore
+      debugPrint('Error loading user weight: $e');
     }
   }
 
@@ -102,8 +96,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Step sensor error: $error');
     });
   }
-
-  // ─── Computed totals ──────────────────────────────────────────────────────
 
   int get _totalMealCalories =>
       widget.meals.fold(0, (sum, m) => sum + m.calories);
@@ -260,7 +252,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Log Activity Sheet ──────────────────────────────────────────────────
+  // ─── Log Activity Sheet (with GPS toggle) ────────────────────────────────
 
   void _showLogActivitySheet() {
     final nameCtrl = TextEditingController();
@@ -278,6 +270,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            bool useGps = false;
+            bool isTrackingGps = false;
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 24,
@@ -350,6 +345,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 12),
 
+                      // ─── GPS Tracking Toggle ──────────────────────────
+                      Row(
+                        children: [
+                          const Icon(Icons.gps_fixed, color: Colors.white54, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              // ignore: dead_code
+                              isTrackingGps ? 'Tracking GPS...' : 'Track distance with GPS',
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            ),
+                          ),
+                          Switch(
+                            value: useGps,
+                            activeThumbColor: Colors.green,
+                            onChanged: (val) async {
+                              if (val) {
+                                try {
+                                  setSheetState(() {
+                                    useGps = true;
+                                    isTrackingGps = true;
+                                  });
+                                  await LocationService().startTracking();
+                                } catch (e) {
+                                  setSheetState(() {
+                                    useGps = false;
+                                    isTrackingGps = false;
+                                  });
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('GPS Error: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              } else {
+                                LocationService().cancelTracking();
+                                setSheetState(() {
+                                  useGps = false;
+                                  isTrackingGps = false;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
                       Builder(
                         builder: (context) {
                           final minutes =
@@ -375,10 +420,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () {
+                          onPressed: () async {
                             if (!formKey.currentState!.validate()) return;
+
                             final minutes =
                                 int.tryParse(durationCtrl.text) ?? 0;
+                            double distance = 0.0;
+                            double pace = 0.0;
+
+                            if (useGps) {
+                              final result =
+                              await LocationService().stopTracking(minutes);
+                              distance = result.distance;
+                              pace = result.pace;
+                              setSheetState(() => isTrackingGps = false);
+                            }
+
                             final calories =
                             ActivityCalorieService.calculateCalories(
                                 selectedActivity, _userWeightKg, minutes);
@@ -389,14 +446,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               caloriesBurned: calories.round(),
                               durationMinutes: minutes,
                               loggedAt: DateTime.now(),
+                              distance: distance > 0 ? distance : null,
+                              pace: pace > 0 ? pace : null,
                             );
 
                             widget.onActivityAdded(activity);
+
+                            if (!context.mounted) return;
                             Navigator.pop(context);
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('${activity.name} logged!'),
+                                content: Text(
+                                  '${activity.name} logged! '
+                                      '${distance > 0 ? "(${distance.toStringAsFixed(2)} km, ${pace.toStringAsFixed(1)} min/km)" : ""}',
+                                ),
                                 backgroundColor: Colors.green.shade700,
                               ),
                             );
@@ -417,7 +481,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Update Target Steps Dialog ──────────────────────────────────────────
+  // ─── Update Steps Dialog ──────────────────────────────────────────────────
 
   void _showUpdateStepsDialog() {
     final targetCtrl =
@@ -685,7 +749,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF1A1A1A),
                           fontSize: 13)),
-                                   onLongPress: () => LongPressHandler.showMealOptions(
+                  onLongPress: () => LongPressHandler.showMealOptions(
                     context,
                     meal,
                         () => widget.onMealRemoved(meal),
@@ -745,9 +809,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           color: Color(0xFF1A1A1A),
                           fontSize: 14)),
                   subtitle: Text(
-                      '${activity.durationLabel}  •  ${activity.caloriesLabel} burned',
-                      style: const TextStyle(
-                          color: Colors.black45, fontSize: 12)),
+                    '${activity.durationLabel}  •  ${activity.caloriesLabel} burned  •  ${activity.distanceLabel}  •  ${activity.paceLabel}',
+                    style: const TextStyle(
+                        color: Colors.black45, fontSize: 12),
+                  ),
                   onLongPress: () =>
                       widget.onActivityRemoved(activity),
                 );
@@ -763,7 +828,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Reusable UI Helpers ──────────────────────────────────────────────────
+  // ─── Reusable Helpers ─────────────────────────────────────────────────────
 
   Widget _card({required Widget child}) => Container(
     width: double.infinity,

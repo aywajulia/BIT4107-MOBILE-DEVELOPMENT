@@ -1,5 +1,5 @@
-/// dashboard_model.dart
-/// Contains data models used by the Dashboard:
+/// dashboard_models.dart
+/// Contains data models used by the Dashboard.
 library;
 
 // ─── Activity Model ───────────────────────────────────────────────────────────
@@ -10,6 +10,8 @@ class ActivityEntry {
   final int caloriesBurned;
   final int durationMinutes;
   final DateTime loggedAt;
+  final double? distance;
+  final double? pace;
 
   const ActivityEntry({
     required this.id,
@@ -17,10 +19,14 @@ class ActivityEntry {
     required this.caloriesBurned,
     required this.durationMinutes,
     required this.loggedAt,
+    this.distance,
+    this.pace,
   });
 
   String get durationLabel => '$durationMinutes min';
   String get caloriesLabel => '$caloriesBurned kcal';
+  String get distanceLabel => distance != null ? '${distance!.toStringAsFixed(2)} km' : 'N/A';
+  String get paceLabel => pace != null ? '${pace!.toStringAsFixed(1)} min/km' : 'N/A';
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -28,6 +34,8 @@ class ActivityEntry {
     'caloriesBurned': caloriesBurned,
     'durationMinutes': durationMinutes,
     'loggedAt': loggedAt.toIso8601String(),
+    'distance': distance,
+    'pace': pace,
   };
 
   factory ActivityEntry.fromMap(Map<String, dynamic> map) => ActivityEntry(
@@ -36,10 +44,12 @@ class ActivityEntry {
     caloriesBurned: map['caloriesBurned'] as int,
     durationMinutes: map['durationMinutes'] as int,
     loggedAt: DateTime.parse(map['loggedAt'] as String),
+    distance: (map['distance'] as num?)?.toDouble(),
+    pace: (map['pace'] as num?)?.toDouble(),
   );
 }
 
-// ─── Step Data Model ──────────────────────────────────────────────────────────
+// ─── Step Data ───────────────────────────────────────────────────────────────
 
 class StepData {
   final int currentSteps;

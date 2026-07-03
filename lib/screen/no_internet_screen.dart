@@ -39,7 +39,8 @@ class _NoInternetScreenState extends State<NoInternetScreen>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    )
+      ..repeat(reverse: true);
 
     _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
@@ -219,5 +220,4 @@ class _NoInternetScreenState extends State<NoInternetScreen>
       ),
     );
   }
-
 }

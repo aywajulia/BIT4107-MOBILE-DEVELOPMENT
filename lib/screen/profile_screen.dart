@@ -106,7 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'weight': _weightCtrl.text.trim().isEmpty ? null : _weightCtrl.text.trim(),
         'profileImage': _profileImagePath,
       };
-      await db.updateUser(_currentUid!, updates);
+            await db.updateUser(_currentUid!, updates);
       if (mounted) {
         setState(() {
           _isSaving = false;

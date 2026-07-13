@@ -33,7 +33,7 @@ class ShreddedSquadApp extends StatelessWidget {
       builder: (context, themeMode, child) {
         return MaterialApp(
           title: 'Shredded Squad',
-          debugShowCheckedModeBanner: false,
+          debugShowCheckedModeBanner: false, ///Removes debug banner
           theme: ThemeData.light(),
           darkTheme: ThemeData.dark(),
           themeMode: themeMode,
